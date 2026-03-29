@@ -913,8 +913,8 @@ export function IssueDetail() {
         missingBehavior="placeholder"
       />
 
-      {/* Content body — shows full draft/tweet text or file path if available */}
-      {(issue.metadata?.draft_body || issue.metadata?.content || issue.metadata?.posted_text || issue.metadata?.draft_path) ? (
+      {/* Content body — shows title, full draft/tweet text, or file path */}
+      {(issue.metadata?.draft_body || issue.metadata?.content || issue.metadata?.posted_text || issue.metadata?.draft_path || issue.metadata?.draft_title || issue.metadata?.suggested_title || issue.metadata?.subject_line) ? (
         <Collapsible defaultOpen>
           <div className="rounded-lg border border-border">
             <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/30 transition-colors">
@@ -923,12 +923,17 @@ export function IssueDetail() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="px-4 pb-4 space-y-3">
-                {(issue.metadata.draft_body || issue.metadata.content || issue.metadata.posted_text) ? (
-                  <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90 font-sans">
+                {(issue.metadata?.draft_title || issue.metadata?.suggested_title || issue.metadata?.subject_line) ? (
+                  <h3 className="text-lg font-semibold text-foreground leading-snug">
+                    {String(issue.metadata.draft_title || issue.metadata.suggested_title || issue.metadata.subject_line)}
+                  </h3>
+                ) : null}
+                {(issue.metadata?.draft_body || issue.metadata?.content || issue.metadata?.posted_text) ? (
+                  <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80 font-sans">
                     {String(issue.metadata.draft_body || issue.metadata.content || issue.metadata.posted_text)}
                   </pre>
                 ) : null}
-                {issue.metadata.draft_path ? (
+                {issue.metadata?.draft_path ? (
                   <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
                     <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <span className="font-mono text-xs text-muted-foreground">
@@ -944,7 +949,7 @@ export function IssueDetail() {
 
       {/* Metadata panel — shows all channel-specific fields */}
       {issue.metadata && Object.keys(issue.metadata).length > 0 && (() => {
-        const CONTENT_KEYS = new Set(["draft_body", "content", "posted_text", "draft_file", "draft_path", "schema_file"]);
+        const CONTENT_KEYS = new Set(["draft_body", "content", "posted_text", "draft_file", "draft_path", "schema_file", "draft_title", "suggested_title", "subject_line"]);
         const entries = Object.entries(issue.metadata as Record<string, unknown>)
           .filter(([k, v]) => !CONTENT_KEYS.has(k) && v != null && v !== "")
           .sort(([a], [b]) => a.localeCompare(b));
