@@ -140,6 +140,7 @@ export function startCoworkSync(db: Db, companyId: string) {
     );
 
     let synced = 0;
+    let skippedKnown = 0;
     const syncedNames: string[] = [];
 
     for (const file of allFiles) {
@@ -155,6 +156,7 @@ export function startCoworkSync(db: Db, companyId: string) {
 
       // Already synced — re-check only if DB says it's running
       if (syncedSessionIds.has(session.sessionId)) {
+        skippedKnown++;
         if (dbRunningIds.has(session.sessionId) && !session.isRunning) {
           // Session finished — mark succeeded
           await db.update(heartbeatRuns)
@@ -174,16 +176,18 @@ export function startCoworkSync(db: Db, companyId: string) {
       // New session — insert
       const status = session.isRunning ? "running" : "succeeded";
       try {
-        // Use raw SQL for ON CONFLICT DO NOTHING (drizzle doesn't support it cleanly)
         await db.execute(sql`
           INSERT INTO heartbeat_runs (company_id, agent_id, invocation_source, trigger_detail, status, started_at, finished_at, result_json, external_run_id)
           VALUES (${companyId}, ${agentId}, 'scheduled', ${session.title}, ${status}, ${session.startedAt}, ${session.isRunning ? null : session.finishedAt}, ${JSON.stringify({ model: session.model })}::jsonb, ${session.sessionId})
-          ON CONFLICT DO NOTHING
+          ON CONFLICT (external_run_id) WHERE external_run_id IS NOT NULL DO NOTHING
         `);
         synced++;
         syncedNames.push(session.isRunning ? `${session.taskName} (running)` : session.taskName);
-      } catch {
-        // ignore duplicates
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("duplicate")) {
+          console.error(`[cowork-sync] Insert failed for ${session.taskName}: ${msg}`);
+        }
       }
 
       syncedSessionIds.add(session.sessionId);
@@ -205,11 +209,12 @@ export function startCoworkSync(db: Db, companyId: string) {
       }
     }
 
+    const now = new Date().toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" });
     if (synced > 0) {
       const unique = [...new Set(syncedNames)];
-      const now = new Date().toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" });
       console.log(`[cowork-sync ${now}] Synced ${synced} runs (${unique.join(", ")})`);
     }
+    console.log(`[cowork-sync ${now}] Scanned ${allFiles.length} files, ${synced} new, ${skippedKnown} known, ${dbRunningIds.size} running in DB`);
   }
 
   async function run() {
