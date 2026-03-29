@@ -208,27 +208,46 @@ function simpleHash(str) {
 // --- Main ---
 async function run() {
   const now = new Date().toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" });
+  try {
+    // Sync skills on first run
+    const skills = await syncSkills();
+    if (skills > 0) console.log(`[cowork-sync ${now}] Synced ${skills} agent skill definitions`);
 
-  // Sync skills on first run
-  const skills = await syncSkills();
-  if (skills > 0) console.log(`[${now}] Synced ${skills} agent skill definitions`);
-
-  // Sync runs
-  const { synced, names } = await syncRuns();
-  if (synced > 0) {
-    const unique = [...new Set(names)];
-    console.log(`[${now}] Synced ${synced} new runs (${unique.join(", ")})`);
-  } else {
-    console.log(`[${now}] No new runs`);
+    // Sync runs
+    const { synced, names } = await syncRuns();
+    if (synced > 0) {
+      const unique = [...new Set(names)];
+      console.log(`[cowork-sync ${now}] Synced ${synced} new runs (${unique.join(", ")})`);
+    }
+  } catch (err) {
+    console.error(`[cowork-sync ${now}] Error: ${err.message}`);
   }
 }
 
 const watch = process.argv.includes("--watch");
 
-console.log("Cowork Sync — reading from:");
+async function waitForApi(maxWait = 120_000) {
+  const start = Date.now();
+  while (Date.now() - start < maxWait) {
+    try {
+      const res = await fetch(`${API_BASE}/health`);
+      if (res.ok) return true;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return false;
+}
+
+console.log("[cowork-sync] waiting for API...");
+const ready = await waitForApi();
+if (!ready) {
+  console.error("[cowork-sync] API not available after 2 minutes, exiting");
+  process.exit(1);
+}
+
+console.log("[cowork-sync] API ready — syncing from:");
 console.log(`  Sessions: ${SESSION_DIR}`);
 console.log(`  Skills:   ${SKILLS_DIR}`);
-console.log(`  API:      ${API_BASE}`);
 console.log(`  Mode:     ${watch ? "watch (60s)" : "one-shot"}\n`);
 
 await run();

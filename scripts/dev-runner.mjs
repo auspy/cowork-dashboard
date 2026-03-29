@@ -437,6 +437,7 @@ async function waitForChildExit() {
 }
 
 async function stopChildForRestart() {
+  if (syncChild) { syncChild.kill("SIGTERM"); syncChild = null; }
   if (!child) return { code: 0, signal: null };
   childExitWasExpected = true;
   child.kill("SIGTERM");
@@ -483,6 +484,21 @@ async function startServerChild() {
   });
 
   await markChildAsCurrent();
+
+  // Start Cowork session sync (reads local scheduled-task runs into heartbeat_runs)
+  startCoworkSync();
+}
+
+let syncChild = null;
+function startCoworkSync() {
+  if (syncChild) return;
+  const syncScript = path.join(repoRoot, "scripts", "sync-cowork-runs.mjs");
+  if (!existsSync(syncScript)) return;
+  syncChild = spawn(process.execPath, [syncScript, "--watch"], {
+    stdio: ["ignore", "inherit", "inherit"],
+    env,
+  });
+  syncChild.on("exit", () => { syncChild = null; });
 }
 
 async function maybeAutoRestartChild() {
