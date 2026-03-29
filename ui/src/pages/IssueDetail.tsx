@@ -913,8 +913,8 @@ export function IssueDetail() {
         missingBehavior="placeholder"
       />
 
-      {/* Content body — shows full draft/tweet text if available in metadata */}
-      {(issue.metadata?.draft_body || issue.metadata?.content || issue.metadata?.posted_text) ? (
+      {/* Content body — shows full draft/tweet text or file path if available */}
+      {(issue.metadata?.draft_body || issue.metadata?.content || issue.metadata?.posted_text || issue.metadata?.draft_path) ? (
         <Collapsible defaultOpen>
           <div className="rounded-lg border border-border">
             <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/30 transition-colors">
@@ -922,10 +922,20 @@ export function IssueDetail() {
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="px-4 pb-4">
-                <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90 font-sans">
-                  {String(issue.metadata.draft_body || issue.metadata.content || issue.metadata.posted_text)}
-                </pre>
+              <div className="px-4 pb-4 space-y-3">
+                {(issue.metadata.draft_body || issue.metadata.content || issue.metadata.posted_text) ? (
+                  <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90 font-sans">
+                    {String(issue.metadata.draft_body || issue.metadata.content || issue.metadata.posted_text)}
+                  </pre>
+                ) : null}
+                {issue.metadata.draft_path ? (
+                  <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+                    <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {String(issue.metadata.draft_path)}
+                    </span>
+                  </div>
+                ) : null}
               </div>
             </CollapsibleContent>
           </div>
