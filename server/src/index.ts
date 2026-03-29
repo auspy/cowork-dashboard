@@ -29,6 +29,7 @@ import { loadConfig } from "./config.js";
 import { logger } from "./middleware/logger.js";
 import { setupLiveEventsWebSocketServer } from "./realtime/live-events-ws.js";
 import { heartbeatService, reconcilePersistedRuntimeServicesOnStartup, routineService } from "./services/index.js";
+import { startCoworkSync } from "./services/cowork-sync.js";
 import { createStorageServiceFromConfig } from "./storage/index.js";
 import { printStartupBanner } from "./startup-banner.js";
 import { getBoardClaimWarningUrl, initializeBoardClaimChallenge } from "./board-claim.js";
@@ -715,7 +716,17 @@ export async function startServer(): Promise<StartedServer> {
       resolveListen();
     });
   });
-  
+
+  // Start Cowork session sync — reads local scheduled-task runs into heartbeat_runs
+  try {
+    const firstCompany = await db.select({ id: companies.id }).from(companies).limit(1);
+    if (firstCompany.length > 0) {
+      startCoworkSync(db, firstCompany[0].id);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Cowork sync failed to start");
+  }
+
   if (embeddedPostgres && embeddedPostgresStartedByThisProcess) {
     const shutdown = async (signal: "SIGINT" | "SIGTERM") => {
       logger.info({ signal }, "Stopping embedded PostgreSQL");
