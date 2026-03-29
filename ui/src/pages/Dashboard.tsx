@@ -206,11 +206,11 @@ export function Dashboard() {
         </div>
       )}
 
-      <ActiveAgentsPanel companyId={selectedCompanyId!} />
+      {/* <ActiveAgentsPanel companyId={selectedCompanyId!} /> */}
 
       {data && (
         <>
-          {data.budgets.activeIncidents > 0 ? (
+          {/* {data.budgets.activeIncidents > 0 ? (
             <div className="flex items-start justify-between gap-3 rounded-xl border border-red-500/20 bg-[linear-gradient(180deg,rgba(255,80,80,0.12),rgba(255,255,255,0.02))] px-4 py-3">
               <div className="flex items-start gap-2.5">
                 <PauseCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" />
@@ -227,7 +227,7 @@ export function Dashboard() {
                 Open budgets
               </Link>
             </div>
-          ) : null}
+          ) : null} */}
 
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-1 sm:gap-2">
             <MetricCard
@@ -255,7 +255,7 @@ export function Dashboard() {
                 </span>
               }
             />
-            <MetricCard
+            {/* <MetricCard
               icon={DollarSign}
               value={formatCents(data.costs.monthSpendCents)}
               label="Month Spend"
@@ -267,7 +267,7 @@ export function Dashboard() {
                     : "Unlimited budget"}
                 </span>
               }
-            />
+            /> */}
             <MetricCard
               icon={ShieldCheck}
               value={data.pendingApprovals + data.budgets.pendingApprovals}
