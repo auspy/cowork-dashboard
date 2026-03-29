@@ -87,7 +87,7 @@ function parseSessionFile(filePath) {
       startedAt: data.createdAt ? new Date(data.createdAt) : null,
       finishedAt: data.lastActivityAt ? new Date(data.lastActivityAt) : null,
       isArchived: data.isArchived ?? false,
-      isRunning: !data.isArchived && data.lastActivityAt && (Date.now() - data.lastActivityAt < 10 * 60_000),
+      isRunning: !data.isArchived,
     };
   } catch {
     return null;
@@ -106,15 +106,20 @@ async function syncRuns() {
     agentMap.set(a.name, a.id);
   }
 
-  // Scan session files — only check recently modified files for status updates
+  // Get session IDs that are currently "running" in DB — always re-check these
+  const dbRunningIds = new Set();
+  try {
+    const rows = psql(`SELECT external_run_id FROM heartbeat_runs WHERE status = 'running' AND company_id = '${COMPANY_ID}'`);
+    if (rows) for (const r of rows.split("\n")) { const id = r.trim(); if (id) dbRunningIds.add(id); }
+  } catch {}
+
+  // Scan session files — new files + files with running DB entries
   const allFiles = fs.readdirSync(SESSION_DIR).filter((f) => f.endsWith(".json") && f.startsWith("local_"));
-  const recentCutoff = Date.now() - 15 * 60_000;
   const files = allFiles.filter((f) => {
-    if (!syncedSet.has("local_" + f.slice(6, -5))) return true; // new file, always check
-    // For already-synced files, only re-check if recently modified
-    try {
-      return fs.statSync(path.join(SESSION_DIR, f)).mtimeMs > recentCutoff;
-    } catch { return false; }
+    const sessionId = "local_" + f.slice(6, -5);
+    if (!syncedSet.has(sessionId)) return true; // new file
+    if (dbRunningIds.has(sessionId)) return true; // has a running heartbeat run — re-check
+    return false;
   });
   let synced = 0;
   const syncedNames = [];
