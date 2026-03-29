@@ -5,6 +5,13 @@ import { X } from "lucide-react";
 import { cn } from "../lib/utils";
 import { StatusIcon } from "./StatusIcon";
 
+const CHANNEL_COLORS: Record<string, string> = {
+  reddit: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  twitter: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
+  blog: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  newsletter: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+};
+
 type UnreadState = "hidden" | "visible" | "fading";
 
 interface IssueRowProps {
@@ -56,8 +63,18 @@ export function IssueRow({
         {mobileLeading ?? <StatusIcon status={issue.status} />}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1 sm:contents">
-        <span className="line-clamp-2 text-sm sm:order-2 sm:min-w-0 sm:flex-1 sm:truncate sm:line-clamp-none">
-          {issue.title}
+        <span className="line-clamp-2 text-sm sm:order-2 sm:min-w-0 sm:flex-1 sm:truncate sm:line-clamp-none flex items-center gap-2">
+          <span className="truncate">{issue.title}</span>
+          {issue.metadata?.channel ? (
+            <span className={cn("hidden sm:inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium leading-none", CHANNEL_COLORS[String(issue.metadata.channel)] ?? "bg-muted text-muted-foreground")}>
+              {String(issue.metadata.channel)}
+            </span>
+          ) : null}
+          {issue.metadata?.pipeline_status ? (
+            <span className="hidden sm:inline-flex shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium leading-none text-muted-foreground">
+              {String(issue.metadata.pipeline_status).replace(/_/g, " ")}
+            </span>
+          ) : null}
         </span>
         <span className="flex items-center gap-2 sm:order-1 sm:shrink-0">
           {desktopLeadingSpacer ? (

@@ -913,6 +913,58 @@ export function IssueDetail() {
         missingBehavior="placeholder"
       />
 
+      {/* Content body — shows full draft/tweet text if available in metadata */}
+      {(issue.metadata?.draft_body || issue.metadata?.content || issue.metadata?.posted_text) ? (
+        <Collapsible defaultOpen>
+          <div className="rounded-lg border border-border">
+            <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/30 transition-colors">
+              <span>Content Preview</span>
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-4">
+                <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90 font-sans">
+                  {String(issue.metadata.draft_body || issue.metadata.content || issue.metadata.posted_text)}
+                </pre>
+              </div>
+            </CollapsibleContent>
+          </div>
+        </Collapsible>
+      ) : null}
+
+      {/* Metadata panel — shows all channel-specific fields */}
+      {issue.metadata && Object.keys(issue.metadata).length > 0 && (() => {
+        const CONTENT_KEYS = new Set(["draft_body", "content", "posted_text", "draft_file", "draft_path", "schema_file"]);
+        const entries = Object.entries(issue.metadata as Record<string, unknown>)
+          .filter(([k, v]) => !CONTENT_KEYS.has(k) && v != null && v !== "")
+          .sort(([a], [b]) => a.localeCompare(b));
+        if (entries.length === 0) return null;
+        return (
+          <Collapsible>
+            <div className="rounded-lg border border-border">
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium hover:bg-accent/30 transition-colors">
+                <span>Metadata ({entries.length})</span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="px-4 pb-4">
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+                    {entries.map(([key, value]) => (
+                      <div key={key} className="contents">
+                        <dt className="text-muted-foreground font-mono text-xs py-0.5">{key}</dt>
+                        <dd className="text-foreground/90 py-0.5 break-all">
+                          {typeof value === "object" ? JSON.stringify(value) : String(value)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        );
+      })()}
+
       <IssueDocumentsSection
         issue={issue}
         canDeleteDocuments={Boolean(session?.user?.id)}
