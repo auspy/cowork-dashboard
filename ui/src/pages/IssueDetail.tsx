@@ -875,19 +875,43 @@ export function IssueDetail() {
           className="text-xl font-bold"
         />
 
-        <InlineEditor
-          value={issue.description ?? ""}
-          onSave={(description) => updateIssue.mutateAsync({ description })}
-          as="p"
-          className="text-[15px] leading-7 text-foreground"
-          placeholder="Add a description..."
-          multiline
-          mentions={mentionOptions}
-          imageUploadHandler={async (file) => {
-            const attachment = await uploadAttachment.mutateAsync(file);
-            return attachment.contentPath;
-          }}
-        />
+        {issue.description ? (
+          <Collapsible>
+            <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <ChevronRight className="h-3.5 w-3.5" />
+              <span>Agent Notes</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <InlineEditor
+                value={issue.description}
+                onSave={(description) => updateIssue.mutateAsync({ description })}
+                as="p"
+                className="mt-2 text-[15px] leading-7 text-foreground"
+                placeholder="Add a description..."
+                multiline
+                mentions={mentionOptions}
+                imageUploadHandler={async (file) => {
+                  const attachment = await uploadAttachment.mutateAsync(file);
+                  return attachment.contentPath;
+                }}
+              />
+            </CollapsibleContent>
+          </Collapsible>
+        ) : (
+          <InlineEditor
+            value=""
+            onSave={(description) => updateIssue.mutateAsync({ description })}
+            as="p"
+            className="text-[15px] leading-7 text-foreground"
+            placeholder="Add a description..."
+            multiline
+            mentions={mentionOptions}
+            imageUploadHandler={async (file) => {
+              const attachment = await uploadAttachment.mutateAsync(file);
+              return attachment.contentPath;
+            }}
+          />
+        )}
       </div>
 
       <PluginSlotOutlet
