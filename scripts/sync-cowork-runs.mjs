@@ -86,6 +86,8 @@ function parseSessionFile(filePath) {
       model: data.model || "unknown",
       startedAt: data.createdAt ? new Date(data.createdAt) : null,
       finishedAt: data.lastActivityAt ? new Date(data.lastActivityAt) : null,
+      isArchived: data.isArchived ?? false,
+      isRunning: !data.isArchived && data.lastActivityAt && (Date.now() - data.lastActivityAt < 10 * 60_000),
     };
   } catch {
     return null;
@@ -113,30 +115,41 @@ async function syncRuns() {
     const filePath = path.join(SESSION_DIR, file);
     const session = parseSessionFile(filePath);
     if (!session) continue;
-    if (syncedSet.has(session.sessionId)) continue;
 
     const agentId = agentMap.get(session.taskName);
     if (!agentId) {
-      // Task name doesn't match any agent (e.g. apple-care-reminder, blog-pipeline)
       syncedSet.add(session.sessionId);
       continue;
     }
 
-    // Insert heartbeat run via psql
     const startTs = session.startedAt ? session.startedAt.toISOString() : "NOW()";
     const finishTs = session.finishedAt ? session.finishedAt.toISOString() : startTs;
     const resultJson = JSON.stringify({ model: session.model }).replace(/'/g, "''");
     const triggerDetail = (session.title || "").replace(/'/g, "''");
     const extRunId = session.sessionId.replace(/'/g, "''");
+    const status = session.isRunning ? "running" : "succeeded";
+
+    if (syncedSet.has(session.sessionId)) {
+      // Already synced — but check if a "running" run has now finished
+      if (!session.isRunning) {
+        try {
+          psql(`
+            UPDATE heartbeat_runs SET status = 'succeeded', finished_at = '${finishTs}', updated_at = NOW()
+            WHERE external_run_id = '${extRunId}' AND status = 'running'
+          `);
+        } catch {}
+      }
+      continue;
+    }
 
     try {
       psql(`
         INSERT INTO heartbeat_runs (company_id, agent_id, invocation_source, trigger_detail, status, started_at, finished_at, result_json, external_run_id)
-        VALUES ('${COMPANY_ID}', '${agentId}', 'scheduled', '${triggerDetail}', 'succeeded', '${startTs}', '${finishTs}', '${resultJson}'::jsonb, '${extRunId}')
+        VALUES ('${COMPANY_ID}', '${agentId}', 'scheduled', '${triggerDetail}', '${status}', '${startTs}', ${status === 'running' ? 'NULL' : "'" + finishTs + "'"}, '${resultJson}'::jsonb, '${extRunId}')
         ON CONFLICT DO NOTHING
       `);
       synced++;
-      syncedNames.push(session.taskName);
+      syncedNames.push(session.isRunning ? `${session.taskName} (running)` : session.taskName);
     } catch (err) {
       console.error(`  Failed to sync ${session.taskName}: ${err.message}`);
     }

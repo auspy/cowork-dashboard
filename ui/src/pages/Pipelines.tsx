@@ -103,7 +103,8 @@ const PIPELINE_COLORS: Record<string, { border: string; bg: string; text: string
   zinc:    { border: "border-zinc-500/30", bg: "bg-zinc-500/10", text: "text-zinc-400", dot: "bg-zinc-500" },
 };
 
-function runRecency(lastRun: Date | null): "recent" | "stale" | "none" {
+function runRecency(lastRun: Date | null, isRunning: boolean): "running" | "recent" | "stale" | "none" {
+  if (isRunning) return "running";
   if (!lastRun) return "none";
   const hours = (Date.now() - new Date(lastRun).getTime()) / 3600_000;
   return hours < 26 ? "recent" : "stale";
@@ -116,14 +117,16 @@ function AgentNode({
   agent,
   lastRun,
   runCount,
+  isRunning,
 }: {
   name: string;
   time?: string;
   agent: { id: string; name: string; title: string | null } | null;
   lastRun: Date | null;
   runCount: number;
+  isRunning: boolean;
 }) {
-  const recency = runRecency(lastRun);
+  const recency = runRecency(lastRun, isRunning);
 
   return (
     <Link
@@ -134,9 +137,11 @@ function AgentNode({
         <span
           className={cn(
             "h-2 w-2 rounded-full shrink-0",
-            recency === "recent" ? "bg-green-500" : recency === "stale" ? "bg-yellow-500" : "bg-zinc-600",
+            recency === "running" ? "bg-green-500 animate-pulse" :
+            recency === "recent" ? "bg-blue-500" :
+            recency === "stale" ? "bg-yellow-500" : "bg-zinc-600",
           )}
-          title={recency === "recent" ? "Ran recently" : recency === "stale" ? "Stale (>24h)" : "No runs"}
+          title={recency === "running" ? "Running now" : recency === "recent" ? "Ran recently" : recency === "stale" ? "Stale (>24h)" : "No runs"}
         />
         <span className="text-xs font-medium truncate">{name}</span>
       </div>
@@ -147,7 +152,9 @@ function AgentNode({
         </div>
       ) : null}
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-        {lastRun ? (
+        {isRunning ? (
+          <span className="text-green-500 font-medium">Running...</span>
+        ) : lastRun ? (
           <span title={new Date(lastRun).toLocaleString()}>{relativeTime(lastRun)}</span>
         ) : (
           <span>no runs</span>
@@ -184,7 +191,7 @@ function PipelineRow({
 }: {
   pipeline: Pipeline;
   agentMap: Map<string, { id: string; name: string; title: string | null }>;
-  runMap: Map<string, { lastRun: Date | null; count: number }>;
+  runMap: Map<string, { lastRun: Date | null; count: number; isRunning: boolean }>;
 }) {
   const colors = PIPELINE_COLORS[pipeline.color] ?? PIPELINE_COLORS.zinc;
   const isStandalone = pipeline.name === "Standalone";
@@ -208,6 +215,7 @@ function PipelineRow({
                   agent={agentMap.get(node.name) ?? null}
                   lastRun={runMap.get(node.name)?.lastRun ?? null}
                   runCount={runMap.get(node.name)?.count ?? 0}
+                  isRunning={runMap.get(node.name)?.isRunning ?? false}
                 />
               ) : (
                 <HumanNode label={node.label} />
@@ -239,6 +247,7 @@ export function Pipelines() {
     queryKey: [...queryKeys.heartbeats(selectedCompanyId!), "pipeline"],
     queryFn: () => heartbeatsApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId,
+    refetchInterval: 30_000,
   });
 
   const agentMap = useMemo(() => {
@@ -250,16 +259,18 @@ export function Pipelines() {
   }, [agents]);
 
   const runMap = useMemo(() => {
-    const map = new Map<string, { lastRun: Date | null; count: number }>();
+    const map = new Map<string, { lastRun: Date | null; count: number; isRunning: boolean }>();
     for (const r of runs ?? []) {
       const agent = agents?.find((a) => a.id === r.agentId);
       if (!agent) continue;
       const existing = map.get(agent.name);
       const runDate = r.startedAt ? new Date(r.startedAt) : null;
+      const running = r.status === "running";
       if (!existing) {
-        map.set(agent.name, { lastRun: runDate, count: 1 });
+        map.set(agent.name, { lastRun: runDate, count: 1, isRunning: running });
       } else {
         existing.count++;
+        if (running) existing.isRunning = true;
         if (runDate && (!existing.lastRun || runDate > existing.lastRun)) {
           existing.lastRun = runDate;
         }
@@ -273,7 +284,8 @@ export function Pipelines() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold">Content Pipelines</h1>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-green-500" /> Ran recently</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" /> Running</span>
+          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Ran recently</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-yellow-500" /> Stale (&gt;24h)</span>
           <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-zinc-600" /> No runs</span>
           <span className="flex items-center gap-1.5"><User className="h-3 w-3" /> Human step</span>
