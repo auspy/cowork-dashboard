@@ -105,6 +105,24 @@ function usageNumber(usage: Record<string, unknown> | null, ...keys: string[]) {
   return 0;
 }
 
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      title={label}
+      className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
   return text.slice(0, max - 1) + "\u2026";
@@ -924,14 +942,22 @@ export function IssueDetail() {
             <CollapsibleContent>
               <div className="px-4 pb-4 space-y-3">
                 {(issue.metadata?.draft_title || issue.metadata?.suggested_title || issue.metadata?.subject_line) ? (
-                  <h3 className="text-lg font-semibold text-foreground leading-snug">
-                    {String(issue.metadata.draft_title || issue.metadata.suggested_title || issue.metadata.subject_line)}
-                  </h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-lg font-semibold text-foreground leading-snug flex-1">
+                      {String(issue.metadata.draft_title || issue.metadata.suggested_title || issue.metadata.subject_line)}
+                    </h3>
+                    <CopyButton text={String(issue.metadata.draft_title || issue.metadata.suggested_title || issue.metadata.subject_line)} label="Copy title" />
+                  </div>
                 ) : null}
                 {(issue.metadata?.draft_body || issue.metadata?.content || issue.metadata?.posted_text) ? (
-                  <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80 font-sans">
-                    {String(issue.metadata.draft_body || issue.metadata.content || issue.metadata.posted_text)}
-                  </pre>
+                  <div className="relative group">
+                    <div className="absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <CopyButton text={String(issue.metadata.draft_body || issue.metadata.content || issue.metadata.posted_text)} label="Copy body" />
+                    </div>
+                    <pre className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/80 font-sans pr-8">
+                      {String(issue.metadata.draft_body || issue.metadata.content || issue.metadata.posted_text)}
+                    </pre>
+                  </div>
                 ) : null}
                 {issue.metadata?.draft_path ? (
                   <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
