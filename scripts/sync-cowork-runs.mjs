@@ -157,6 +157,29 @@ async function syncRuns() {
     syncedSet.add(session.sessionId);
   }
 
+  // Update agent statuses based on running heartbeat runs
+  const runningAgentIds = new Set();
+  try {
+    const rows = psql(`SELECT DISTINCT agent_id FROM heartbeat_runs WHERE status = 'running' AND company_id = '${COMPANY_ID}'`);
+    if (rows) {
+      for (const row of rows.split("\n")) {
+        const id = row.trim();
+        if (id) runningAgentIds.add(id);
+      }
+    }
+  } catch {}
+
+  for (const [name, id] of agentMap) {
+    const shouldBeRunning = runningAgentIds.has(id);
+    try {
+      if (shouldBeRunning) {
+        psql(`UPDATE agents SET status = 'running', updated_at = NOW() WHERE id = '${id}' AND status != 'running'`);
+      } else {
+        psql(`UPDATE agents SET status = 'idle', updated_at = NOW() WHERE id = '${id}' AND status = 'running'`);
+      }
+    } catch {}
+  }
+
   // Save state
   state.syncedSessionIds = [...syncedSet];
   saveState(state);
