@@ -133,6 +133,7 @@ export function App() {
         <Route path="issues/:issueId" element={<UnprefixedBoardRedirect />} />
         <Route path="routines" element={<UnprefixedBoardRedirect />} />
         <Route path="routines/:routineId" element={<UnprefixedBoardRedirect />} />
+        <Route path="pipelines" element={<UnprefixedBoardRedirect />} />
         <Route path="agents" element={<UnprefixedBoardRedirect />} />
         <Route path="agents/:agentId" element={<UnprefixedBoardRedirect />} />
         <Route path="agents/:agentId/:tab" element={<UnprefixedBoardRedirect />} />
