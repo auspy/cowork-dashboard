@@ -106,8 +106,16 @@ async function syncRuns() {
     agentMap.set(a.name, a.id);
   }
 
-  // Scan session files
-  const files = fs.readdirSync(SESSION_DIR).filter((f) => f.endsWith(".json") && f.startsWith("local_"));
+  // Scan session files — only check recently modified files for status updates
+  const allFiles = fs.readdirSync(SESSION_DIR).filter((f) => f.endsWith(".json") && f.startsWith("local_"));
+  const recentCutoff = Date.now() - 15 * 60_000;
+  const files = allFiles.filter((f) => {
+    if (!syncedSet.has("local_" + f.slice(6, -5))) return true; // new file, always check
+    // For already-synced files, only re-check if recently modified
+    try {
+      return fs.statSync(path.join(SESSION_DIR, f)).mtimeMs > recentCutoff;
+    } catch { return false; }
+  });
   let synced = 0;
   const syncedNames = [];
 
@@ -130,8 +138,15 @@ async function syncRuns() {
     const status = session.isRunning ? "running" : "succeeded";
 
     if (syncedSet.has(session.sessionId)) {
-      // Already synced — but check if a "running" run has now finished
-      if (!session.isRunning) {
+      // Already synced — update status if changed
+      if (session.isRunning) {
+        try {
+          psql(`
+            UPDATE heartbeat_runs SET status = 'running', finished_at = NULL, updated_at = NOW()
+            WHERE external_run_id = '${extRunId}' AND status != 'running'
+          `);
+        } catch {}
+      } else {
         try {
           psql(`
             UPDATE heartbeat_runs SET status = 'succeeded', finished_at = '${finishTs}', updated_at = NOW()
