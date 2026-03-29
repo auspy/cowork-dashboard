@@ -52,6 +52,7 @@ export const createIssueSchema = z.object({
   ]).optional().nullable(),
   executionWorkspaceSettings: issueExecutionWorkspaceSettingsSchema.optional().nullable(),
   labelIds: z.array(z.string().uuid()).optional(),
+  metadata: z.record(z.unknown()).optional().nullable(),
 });
 
 export type CreateIssue = z.infer<typeof createIssueSchema>;
