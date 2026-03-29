@@ -63,8 +63,8 @@ export function IssueRow({
         {mobileLeading ?? <StatusIcon status={issue.status} />}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1 sm:contents">
-        <span className="line-clamp-2 text-sm sm:order-2 sm:min-w-0 sm:flex-1 sm:truncate sm:line-clamp-none flex items-center gap-2">
-          <span className="truncate">{issue.title}</span>
+        <span className="line-clamp-2 text-sm sm:order-2 sm:min-w-0 sm:flex-1 sm:line-clamp-none sm:flex sm:items-center sm:gap-2">
+          <span className="sm:truncate">{issue.title}</span>
           {issue.metadata?.channel ? (
             <span className={cn("hidden sm:inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium leading-none", CHANNEL_COLORS[String(issue.metadata.channel)] ?? "bg-muted text-muted-foreground")}>
               {String(issue.metadata.channel)}
