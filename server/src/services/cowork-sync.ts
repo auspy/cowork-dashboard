@@ -177,9 +177,11 @@ export function startCoworkSync(db: Db, companyId: string) {
       // Completed sessions only insert if not yet synced
       const status = session.isRunning ? "running" : "succeeded";
       try {
+        const startIso = session.startedAt?.toISOString() ?? null;
+        const finishIso = session.isRunning ? null : (session.finishedAt?.toISOString() ?? null);
         await db.execute(sql`
           INSERT INTO heartbeat_runs (company_id, agent_id, invocation_source, trigger_detail, status, started_at, finished_at, result_json, external_run_id)
-          VALUES (${companyId}, ${agentId}, 'scheduled', ${session.title}, ${status}, ${session.startedAt}, ${session.isRunning ? null : session.finishedAt}, ${JSON.stringify({ model: session.model })}::jsonb, ${session.sessionId})
+          VALUES (${companyId}, ${agentId}, 'scheduled', ${session.title}, ${status}, ${startIso}, ${finishIso}, ${JSON.stringify({ model: session.model })}::jsonb, ${session.sessionId})
           ON CONFLICT (external_run_id) WHERE external_run_id IS NOT NULL DO NOTHING
         `);
         synced++;
