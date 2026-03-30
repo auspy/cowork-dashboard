@@ -66,7 +66,7 @@ function parseSessionFile(filePath: string): ParsedSession | null {
       model: data.model || "unknown",
       startedAt: data.createdAt ? new Date(data.createdAt) : null,
       finishedAt: data.lastActivityAt ? new Date(data.lastActivityAt) : null,
-      isRunning: !data.isArchived,
+      isRunning: !data.isArchived && !!data.lastActivityAt && (Date.now() - data.lastActivityAt < 5 * 60_000),
     };
   } catch {
     return null;
