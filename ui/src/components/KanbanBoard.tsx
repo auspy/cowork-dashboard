@@ -20,7 +20,25 @@ import {
 import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
 import { Identity } from "./Identity";
+import { pickTextColorForPillBg } from "@/lib/color-contrast";
+import { cn } from "../lib/utils";
 import type { Issue } from "@paperclipai/shared";
+
+const CHANNEL_COLORS: Record<string, string> = {
+  reddit: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
+  twitter: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
+  blog: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  newsletter: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+};
+
+function getContentPreview(metadata: Record<string, unknown> | null | undefined): { title: string | null; body: string | null } {
+  if (!metadata) return { title: null, body: null };
+  const rawTitle = metadata.draft_title ?? metadata.suggested_title ?? metadata.subject_line;
+  const title = typeof rawTitle === "string" && rawTitle.trim() ? rawTitle.trim() : null;
+  const rawBody = metadata.draft_body ?? metadata.content ?? metadata.posted_text;
+  const body = typeof rawBody === "string" && rawBody.trim() ? rawBody.trim() : null;
+  return { title, body };
+}
 
 const boardStatuses = [
   "backlog",
@@ -194,7 +212,71 @@ function KanbanCard({
             </span>
           )}
         </div>
-        <p className="text-sm leading-snug line-clamp-2 mb-2">{issue.title}</p>
+        <p className="text-sm leading-snug line-clamp-2 mb-1.5">{issue.title}</p>
+        {(() => {
+          const meta = issue.metadata as Record<string, unknown> | null | undefined;
+          const channel = meta?.channel ? String(meta.channel) : null;
+          const contentType = meta?.content_type ? String(meta.content_type) : null;
+          const persona = meta?.persona ? String(meta.persona) : null;
+          const { title: contentTitle, body: contentBody } = getContentPreview(meta);
+          const hasTags = channel || contentType || persona;
+          if (!hasTags && !contentTitle && !contentBody) return null;
+          return (
+            <div className="mb-2 space-y-1.5">
+              {hasTags && (
+                <div className="flex flex-wrap gap-1">
+                  {channel && (
+                    <span className={cn("inline-flex rounded-full px-1.5 py-0 text-[10px] font-medium leading-4", CHANNEL_COLORS[channel] ?? "bg-muted text-muted-foreground")}>
+                      {channel}
+                    </span>
+                  )}
+                  {contentType && (
+                    <span className="inline-flex rounded-full bg-muted px-1.5 py-0 text-[10px] font-medium leading-4 text-muted-foreground">
+                      {contentType.replace(/_/g, " ")}
+                    </span>
+                  )}
+                  {persona && (
+                    <span className="inline-flex rounded-full bg-violet-500/15 px-1.5 py-0 text-[10px] font-medium leading-4 text-violet-600 dark:text-violet-400">
+                      {persona}
+                    </span>
+                  )}
+                </div>
+              )}
+              {contentTitle && (
+                <p className="text-[11px] leading-snug font-medium text-foreground/70">
+                  {contentTitle}
+                </p>
+              )}
+              {contentBody && (
+                <p className="text-[11px] leading-snug text-muted-foreground line-clamp-2">
+                  {contentBody}
+                </p>
+              )}
+            </div>
+          );
+        })()}
+        {(issue.labels ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {(issue.labels ?? []).slice(0, 3).map((label) => (
+              <span
+                key={label.id}
+                className="inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-medium leading-4"
+                style={{
+                  borderColor: label.color,
+                  color: pickTextColorForPillBg(label.color, 0.12),
+                  backgroundColor: `${label.color}1f`,
+                }}
+              >
+                {label.name}
+              </span>
+            ))}
+            {(issue.labels ?? []).length > 3 && (
+              <span className="text-[10px] text-muted-foreground leading-4">
+                +{(issue.labels ?? []).length - 3}
+              </span>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <PriorityIcon priority={issue.priority} />
           {issue.assigneeAgentId && (() => {

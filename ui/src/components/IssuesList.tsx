@@ -42,6 +42,7 @@ export type IssueViewState = {
   assignees: string[];
   labels: string[];
   projects: string[];
+  personas: string[];
   sortField: "status" | "priority" | "title" | "created" | "updated";
   sortDir: "asc" | "desc";
   groupBy: "status" | "priority" | "assignee" | "none";
@@ -55,6 +56,7 @@ const defaultViewState: IssueViewState = {
   assignees: [],
   labels: [],
   projects: [],
+  personas: [],
   sortField: "updated",
   sortDir: "desc",
   groupBy: "none",
@@ -109,6 +111,10 @@ function applyFilters(issues: Issue[], state: IssueViewState, currentUserId?: st
   }
   if (state.labels.length > 0) result = result.filter((i) => (i.labelIds ?? []).some((id) => state.labels.includes(id)));
   if (state.projects.length > 0) result = result.filter((i) => i.projectId != null && state.projects.includes(i.projectId));
+  if (state.personas.length > 0) result = result.filter((i) => {
+    const persona = (i.metadata as Record<string, unknown> | null)?.persona;
+    return typeof persona === "string" && state.personas.includes(persona);
+  });
   return result;
 }
 
@@ -141,6 +147,7 @@ function countActiveFilters(state: IssueViewState): number {
   if (state.assignees.length > 0) count++;
   if (state.labels.length > 0) count++;
   if (state.projects.length > 0) count++;
+  if (state.personas.length > 0) count++;
   return count;
 }
 
@@ -308,6 +315,15 @@ export function IssuesList({
     enabled: !!selectedCompanyId,
   });
 
+  const uniquePersonas = useMemo(() => {
+    const set = new Set<string>();
+    for (const issue of issues) {
+      const persona = (issue.metadata as Record<string, unknown> | null)?.persona;
+      if (typeof persona === "string" && persona) set.add(persona);
+    }
+    return [...set].sort();
+  }, [issues]);
+
   const activeFilterCount = countActiveFilters(viewState);
 
   const groupedContent = useMemo(() => {
@@ -411,7 +427,7 @@ export function IssuesList({
                     className="h-3 w-3 ml-1 hidden sm:block"
                     onClick={(e) => {
                       e.stopPropagation();
-                      updateView({ statuses: [], priorities: [], assignees: [], labels: [], projects: [] });
+                      updateView({ statuses: [], priorities: [], assignees: [], labels: [], projects: [], personas: [] });
                     }}
                   />
                 )}
@@ -424,7 +440,7 @@ export function IssuesList({
                   {activeFilterCount > 0 && (
                     <button
                       className="text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => updateView({ statuses: [], priorities: [], assignees: [], labels: [] })}
+                      onClick={() => updateView({ statuses: [], priorities: [], assignees: [], labels: [], personas: [] })}
                     >
                       Clear
                     </button>
@@ -556,6 +572,24 @@ export function IssuesList({
                                 onCheckedChange={() => updateView({ projects: toggleInArray(viewState.projects, project.id) })}
                               />
                               <span className="text-sm">{project.name}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {uniquePersonas.length > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Persona</span>
+                        <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                          {uniquePersonas.map((persona) => (
+                            <label key={persona} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/50 cursor-pointer">
+                              <Checkbox
+                                checked={viewState.personas.includes(persona)}
+                                onCheckedChange={() => updateView({ personas: toggleInArray(viewState.personas, persona) })}
+                              />
+                              <span className="h-2.5 w-2.5 rounded-full bg-violet-500/40" />
+                              <span className="text-sm">{persona}</span>
                             </label>
                           ))}
                         </div>
