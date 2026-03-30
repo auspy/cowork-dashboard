@@ -921,8 +921,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
     if (hiddenAtRaw !== undefined) {
       updateFields.hiddenAt = hiddenAtRaw ? new Date(hiddenAtRaw) : null;
     }
-    if (commentBody && reopenRequested === true && isClosed && updateFields.status === undefined) {
-      updateFields.status = "todo";
+    if (commentBody && reopenRequested === true && updateFields.status === undefined) {
+      updateFields.status = "needs_revision";
     }
     let issue;
     try {
@@ -974,9 +974,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
     const reopened =
       commentBody &&
       reopenRequested === true &&
-      isClosed &&
       previous.status !== undefined &&
-      issue.status === "todo";
+      issue.status === "needs_revision";
     const reopenFromStatus = reopened ? existing.status : null;
     await logActivity(db, {
       companyId: issue.companyId,
@@ -1312,8 +1311,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
     let interruptedRunId: string | null = null;
     let currentIssue = issue;
 
-    if (reopenRequested && isClosed) {
-      const reopenedIssue = await svc.update(id, { status: "todo" });
+    if (reopenRequested) {
+      const reopenedIssue = await svc.update(id, { status: "needs_revision" });
       if (!reopenedIssue) {
         res.status(404).json({ error: "Issue not found" });
         return;
@@ -1332,7 +1331,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
         entityType: "issue",
         entityId: currentIssue.id,
         details: {
-          status: "todo",
+          status: "needs_revision",
           reopened: true,
           reopenedFrom: reopenFromStatus,
           source: "comment",

@@ -66,7 +66,7 @@ type SectionKey =
   | "work_items"
   | "alerts";
 
-const INBOX_ISSUE_STATUSES = "backlog,todo,in_progress,in_review,blocked,done";
+const INBOX_ISSUE_STATUSES = "backlog,todo,in_progress,in_review,needs_revision,blocked,done";
 
 function firstNonEmptyLine(value: string | null | undefined): string | null {
   if (!value) return null;

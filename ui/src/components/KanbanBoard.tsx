@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "@/lib/router";
 import {
   DndContext,
@@ -27,6 +27,7 @@ const boardStatuses = [
   "todo",
   "in_progress",
   "in_review",
+  "needs_revision",
   "blocked",
   "done",
   "cancelled",
@@ -55,17 +56,51 @@ function KanbanColumn({
   issues,
   agents,
   liveIssueIds,
+  collapsed,
+  onToggleCollapse,
 }: {
   status: string;
   issues: Issue[];
   agents?: Agent[];
   liveIssueIds?: Set<string>;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
+  if (collapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        className={`flex flex-col items-center shrink-0 w-9 rounded-md cursor-pointer select-none transition-colors ${
+          isOver ? "bg-accent/40" : "bg-muted/20"
+        }`}
+        onClick={onToggleCollapse}
+        title={`Expand ${statusLabel(status)}`}
+      >
+        <div className="flex flex-col items-center gap-2 py-3">
+          <StatusIcon status={status} />
+          <span className="text-[10px] font-semibold text-muted-foreground/60 tabular-nums">
+            {issues.length}
+          </span>
+        </div>
+        <span
+          className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground"
+          style={{ writingMode: "vertical-lr" }}
+        >
+          {statusLabel(status)}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-w-[260px] w-[260px] shrink-0">
-      <div className="flex items-center gap-2 px-2 py-2 mb-1">
+      <div
+        className="flex items-center gap-2 px-2 py-2 mb-1 cursor-pointer select-none rounded hover:bg-accent/30 transition-colors"
+        onClick={onToggleCollapse}
+        title={`Collapse ${statusLabel(status)}`}
+      >
         <StatusIcon status={status} />
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {statusLabel(status)}
@@ -180,6 +215,20 @@ function KanbanCard({
 
 /* ── Main Board ── */
 
+const COLLAPSED_KEY = "kanban-collapsed-columns";
+
+function loadCollapsed(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch { /* ignore */ }
+  return new Set();
+}
+
+function saveCollapsed(set: Set<string>) {
+  localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...set]));
+}
+
 export function KanbanBoard({
   issues,
   agents,
@@ -187,6 +236,20 @@ export function KanbanBoard({
   onUpdateIssue,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(loadCollapsed);
+
+  useEffect(() => {
+    saveCollapsed(collapsedColumns);
+  }, [collapsedColumns]);
+
+  const toggleCollapse = useCallback((status: string) => {
+    setCollapsedColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -261,6 +324,8 @@ export function KanbanBoard({
             issues={columnIssues[status] ?? []}
             agents={agents}
             liveIssueIds={liveIssueIds}
+            collapsed={collapsedColumns.has(status)}
+            onToggleCollapse={() => toggleCollapse(status)}
           />
         ))}
       </div>

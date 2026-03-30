@@ -529,7 +529,7 @@ export function IssueDetail() {
         comment: body,
         assigneeAgentId: reassignment.assigneeAgentId,
         assigneeUserId: reassignment.assigneeUserId,
-        ...(reopen ? { status: "todo" } : {}),
+        ...(reopen ? { status: "needs_revision" } : {}),
       }),
     onSuccess: () => {
       invalidateIssue();

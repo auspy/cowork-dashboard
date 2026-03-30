@@ -113,6 +113,7 @@ export const ISSUE_STATUSES = [
   "todo",
   "in_progress",
   "in_review",
+  "needs_revision",
   "done",
   "blocked",
   "cancelled",

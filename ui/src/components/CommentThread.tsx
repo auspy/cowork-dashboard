@@ -452,7 +452,7 @@ export function CommentThread({
               onChange={(e) => setReopen(e.target.checked)}
               className="rounded border-border"
             />
-            Re-open
+            Move to Needs Revision
           </label>
           {enableReassign && reassignOptions.length > 0 && (
             <InlineEntitySelector
