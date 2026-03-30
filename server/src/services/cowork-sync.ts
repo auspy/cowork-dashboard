@@ -154,11 +154,11 @@ export function startCoworkSync(db: Db, companyId: string) {
         continue;
       }
 
-      // Already synced — re-check only if DB says it's running
-      if (syncedSessionIds.has(session.sessionId)) {
+      // Already synced and not running — skip
+      if (syncedSessionIds.has(session.sessionId) && !session.isRunning) {
         skippedKnown++;
-        if (dbRunningIds.has(session.sessionId) && !session.isRunning) {
-          // Session finished — mark succeeded
+        // Session finished — mark succeeded if DB still has it as running
+        if (dbRunningIds.has(session.sessionId)) {
           await db.update(heartbeatRuns)
             .set({
               status: "succeeded",
@@ -173,7 +173,8 @@ export function startCoworkSync(db: Db, companyId: string) {
         continue;
       }
 
-      // New session — insert
+      // Running sessions always re-insert (they may have been reaped)
+      // Completed sessions only insert if not yet synced
       const status = session.isRunning ? "running" : "succeeded";
       try {
         await db.execute(sql`

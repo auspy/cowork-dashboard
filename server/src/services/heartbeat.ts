@@ -1747,6 +1747,8 @@ export function heartbeatService(db: Db) {
 
     for (const { run, adapterType } of activeRuns) {
       if (runningProcesses.has(run.id) || activeRunExecutions.has(run.id)) continue;
+      // Skip externally-synced runs (e.g. Cowork scheduled tasks) — they have no local process
+      if (run.invocationSource === "scheduled") continue;
 
       // Apply staleness threshold to avoid false positives
       if (staleThresholdMs > 0) {
