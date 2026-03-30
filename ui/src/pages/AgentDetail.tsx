@@ -913,7 +913,7 @@ export function AgentDetail() {
               { value: "skills", label: "Skills" },
               { value: "configuration", label: "Configuration" },
               { value: "runs", label: "Runs" },
-              { value: "budget", label: "Budget" },
+              // { value: "budget", label: "Budget" },
             ]}
             value={activeView}
             onValueChange={(value) => navigate(`/agents/${canonicalAgentRef}/${value}`)}
@@ -1038,7 +1038,7 @@ export function AgentDetail() {
         />
       )}
 
-      {activeView === "budget" && resolvedCompanyId ? (
+      {/* {activeView === "budget" && resolvedCompanyId ? (
         <div className="max-w-3xl">
           <BudgetPolicyCard
             summary={agentBudgetSummary}
@@ -1047,7 +1047,7 @@ export function AgentDetail() {
             variant="plain"
           />
         </div>
-      ) : null}
+      ) : null} */}
     </div>
   );
 }
@@ -1221,11 +1221,11 @@ function AgentOverview({
         )}
       </div>
 
-      {/* Costs */}
+      {/* Costs - commented out for now
       <div className="space-y-3">
         <h3 className="text-sm font-medium">Costs</h3>
         <CostsSection runtimeState={runtimeState} runs={runs} />
-      </div>
+      </div> */}
     </div>
   );
 }

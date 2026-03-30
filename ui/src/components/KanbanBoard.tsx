@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@/lib/router";
 import {
   DndContext,
@@ -251,6 +251,29 @@ export function KanbanBoard({
     });
   }, []);
 
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const boardScrollRef = useRef<HTMLDivElement>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+  const syncing = useRef(false);
+
+  useEffect(() => {
+    const board = boardScrollRef.current;
+    if (!board) return;
+    const ro = new ResizeObserver(() => setScrollWidth(board.scrollWidth));
+    ro.observe(board);
+    setScrollWidth(board.scrollWidth);
+    return () => ro.disconnect();
+  }, [collapsedColumns, issues]);
+
+  const syncScroll = useCallback((source: "top" | "board") => {
+    if (syncing.current) return;
+    syncing.current = true;
+    const from = source === "top" ? topScrollRef.current : boardScrollRef.current;
+    const to = source === "top" ? boardScrollRef.current : topScrollRef.current;
+    if (from && to) to.scrollLeft = from.scrollLeft;
+    syncing.current = false;
+  }, []);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
@@ -316,7 +339,18 @@ export function KanbanBoard({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-3 overflow-x-auto pb-4 -mx-2 px-2">
+      <div
+        ref={topScrollRef}
+        className="overflow-x-auto -mx-2 px-2"
+        onScroll={() => syncScroll("top")}
+      >
+        <div style={{ width: scrollWidth, height: 1 }} />
+      </div>
+      <div
+        ref={boardScrollRef}
+        className="flex gap-3 overflow-x-auto pb-4 -mx-2 px-2"
+        onScroll={() => syncScroll("board")}
+      >
         {boardStatuses.map((status) => (
           <KanbanColumn
             key={status}
