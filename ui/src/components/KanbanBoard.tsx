@@ -20,6 +20,7 @@ import {
 import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
 import { Identity } from "./Identity";
+import { ChevronRight } from "lucide-react";
 import { pickTextColorForPillBg } from "@/lib/color-contrast";
 import { cn } from "../lib/utils";
 import type { Issue } from "@paperclipai/shared";
@@ -151,6 +152,34 @@ function KanbanColumn({
   );
 }
 
+/* ── Description Dropdown ── */
+
+function DescriptionDropdown({ description, defaultOpen }: { description: string; defaultOpen: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div>
+      <button
+        type="button"
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(!open);
+        }}
+      >
+        <ChevronRight className={cn("h-3 w-3 transition-transform", open && "rotate-90")} />
+        Angle
+      </button>
+      {open && (
+        <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap mt-1">
+          {description}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ── Draggable Card ── */
 
 function KanbanCard({
@@ -220,9 +249,12 @@ function KanbanCard({
           const persona = meta?.persona ? String(meta.persona) : null;
           const { title: contentTitle, body: contentBody } = getContentPreview(meta);
           const hasTags = channel || contentType || persona;
-          if (!hasTags && !contentTitle && !contentBody) return null;
+          const hasContent = contentTitle || contentBody;
           return (
             <div className="mb-2 space-y-1.5">
+              {issue.description && (
+                <DescriptionDropdown description={issue.description} defaultOpen={!hasContent} />
+              )}
               {hasTags && (
                 <div className="flex flex-wrap gap-1">
                   {channel && (
@@ -243,12 +275,12 @@ function KanbanCard({
                 </div>
               )}
               {contentTitle && (
-                <p className="text-[11px] leading-snug font-medium text-foreground/70">
+                <p className="text-sm leading-relaxed font-medium text-foreground/70">
                   {contentTitle}
                 </p>
               )}
               {contentBody && (
-                <p className="text-[11px] leading-snug text-muted-foreground line-clamp-2">
+                <p className="text-sm leading-relaxed text-muted-foreground line-clamp-2">
                   {contentBody}
                 </p>
               )}
