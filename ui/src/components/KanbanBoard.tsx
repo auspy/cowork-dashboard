@@ -20,7 +20,7 @@ import {
 import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
 import { Identity } from "./Identity";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ExternalLink } from "lucide-react";
 import { pickTextColorForPillBg } from "@/lib/color-contrast";
 import { cn } from "../lib/utils";
 import type { Issue } from "@paperclipai/shared";
@@ -31,6 +31,22 @@ const CHANNEL_COLORS: Record<string, string> = {
   blog: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
   newsletter: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
 };
+
+const URL_META_KEYS = ["url", "source_url", "reddit_url", "post_url", "thread_url", "link", "reddit_link", "reddit_post_url"];
+
+function getExternalUrl(metadata: Record<string, unknown> | null | undefined): string | null {
+  if (!metadata) return null;
+  // Check well-known key names first
+  for (const key of URL_META_KEYS) {
+    const val = metadata[key];
+    if (typeof val === "string" && val.startsWith("http")) return val;
+  }
+  // Fallback: scan all string values for a reddit.com URL
+  for (const val of Object.values(metadata)) {
+    if (typeof val === "string" && /https?:\/\/(www\.)?reddit\.com\//.test(val)) return val;
+  }
+  return null;
+}
 
 function getContentPreview(metadata: Record<string, unknown> | null | undefined): { title: string | null; body: string | null } {
   if (!metadata) return { title: null, body: null };
@@ -319,6 +335,30 @@ function KanbanCard({
               <span className="text-xs text-muted-foreground font-mono">
                 {issue.assigneeAgentId.slice(0, 8)}
               </span>
+            );
+          })()}
+          {(() => {
+            const meta = issue.metadata as Record<string, unknown> | null | undefined;
+            const extUrl = getExternalUrl(meta);
+            if (!extUrl) return null;
+            const commentText = String(meta?.draft_body ?? meta?.content ?? meta?.posted_text ?? "");
+            return (
+              <button
+                type="button"
+                className="ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 transition-colors cursor-pointer"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (commentText) {
+                    await navigator.clipboard.writeText(commentText);
+                  }
+                  window.open(extUrl, "_blank", "noopener,noreferrer");
+                }}
+                title={commentText ? "Copy comment & open Reddit" : "Open Reddit post"}
+              >
+                <ExternalLink className="h-3 w-3" />
+                Reddit
+              </button>
             );
           })()}
         </div>

@@ -44,6 +44,7 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  ExternalLink,
   EyeOff,
   Hexagon,
   ListTree,
@@ -801,6 +802,40 @@ export function IssueDetail() {
               )}
             </div>
           )}
+
+          {(() => {
+            const meta = issue.metadata as Record<string, unknown> | null | undefined;
+            if (!meta) return null;
+            const urlKeys = ["url", "source_url", "reddit_url", "post_url", "thread_url", "link", "reddit_link", "reddit_post_url"];
+            let extUrl: string | null = null;
+            for (const key of urlKeys) {
+              const val = meta[key];
+              if (typeof val === "string" && val.startsWith("http")) { extUrl = val; break; }
+            }
+            if (!extUrl) {
+              for (const val of Object.values(meta)) {
+                if (typeof val === "string" && /https?:\/\/(www\.)?reddit\.com\//.test(val)) { extUrl = val; break; }
+              }
+            }
+            if (!extUrl) return null;
+            const commentText = String(meta.draft_body ?? meta.content ?? meta.posted_text ?? "");
+            return (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/30 px-2 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400 shrink-0 hover:bg-orange-500/20 transition-colors cursor-pointer"
+                onClick={async () => {
+                  if (commentText) {
+                    await navigator.clipboard.writeText(commentText);
+                  }
+                  window.open(extUrl!, "_blank", "noopener,noreferrer");
+                }}
+                title={commentText ? "Copy comment & open Reddit post" : "Open Reddit post"}
+              >
+                <ExternalLink className="h-3 w-3" />
+                {commentText ? "Copy & Open Reddit" : "Open in Reddit"}
+              </button>
+            );
+          })()}
 
           <div className="ml-auto flex items-center gap-0.5 md:hidden shrink-0">
             <Button
