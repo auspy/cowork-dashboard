@@ -74,16 +74,90 @@ const quickFilterPresets = [
 ];
 const ISSUE_SEARCH_COMMIT_DELAY_MS = 150;
 
-function getViewState(key: string): IssueViewState {
+/** Keys that live in URL search params (filters & sort). */
+const URL_PARAM_KEYS: Record<string, "array" | "string"> = {
+  statuses: "array",
+  priorities: "array",
+  assignees: "array",
+  labels: "array",
+  projects: "array",
+  personas: "array",
+  dateRange: "string",
+  sortField: "string",
+  sortDir: "string",
+  groupBy: "string",
+};
+
+/** Keys that stay in localStorage (layout prefs, not shareable via URL). */
+const LOCAL_STORAGE_KEYS = ["viewMode", "collapsedGroups"] as const;
+
+function getViewStateFromUrl(): Partial<IssueViewState> {
+  const params = new URLSearchParams(window.location.search);
+  const partial: Record<string, unknown> = {};
+  for (const [key, type] of Object.entries(URL_PARAM_KEYS)) {
+    const raw = params.get(key);
+    if (raw != null && raw !== "") {
+      partial[key] = type === "array" ? raw.split(",") : raw;
+    }
+  }
+  return partial as Partial<IssueViewState>;
+}
+
+function getLocalViewState(key: string): Partial<IssueViewState> {
   try {
     const raw = localStorage.getItem(key);
-    if (raw) return { ...defaultViewState, ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const local: Record<string, unknown> = {};
+      for (const k of LOCAL_STORAGE_KEYS) {
+        if (parsed[k] !== undefined) local[k] = parsed[k];
+      }
+      return local as Partial<IssueViewState>;
+    }
   } catch { /* ignore */ }
-  return { ...defaultViewState };
+  return {};
+}
+
+function getViewState(key: string): IssueViewState {
+  const fromUrl = getViewStateFromUrl();
+  const fromLocal = getLocalViewState(key);
+  return { ...defaultViewState, ...fromLocal, ...fromUrl };
+}
+
+function syncViewStateToUrl(state: IssueViewState) {
+  const url = new URL(window.location.href);
+  for (const [key, type] of Object.entries(URL_PARAM_KEYS)) {
+    const val = (state as Record<string, unknown>)[key];
+    if (type === "array") {
+      const arr = val as string[];
+      if (arr && arr.length > 0) {
+        url.searchParams.set(key, arr.join(","));
+      } else {
+        url.searchParams.delete(key);
+      }
+    } else {
+      const str = val as string;
+      const def = (defaultViewState as Record<string, unknown>)[key];
+      if (str && str !== def) {
+        url.searchParams.set(key, str);
+      } else {
+        url.searchParams.delete(key);
+      }
+    }
+  }
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState(window.history.state, "", nextUrl);
 }
 
 function saveViewState(key: string, state: IssueViewState) {
-  localStorage.setItem(key, JSON.stringify(state));
+  // Save layout prefs to localStorage
+  const local: Record<string, unknown> = {};
+  for (const k of LOCAL_STORAGE_KEYS) {
+    local[k] = (state as Record<string, unknown>)[k];
+  }
+  localStorage.setItem(key, JSON.stringify(local));
+  // Sync filter/sort to URL
+  syncViewStateToUrl(state);
 }
 
 function arraysEqual(a: string[], b: string[]): boolean {
@@ -289,7 +363,7 @@ export function IssuesList({
     setIssueSearch(initialSearch ?? "");
   }, [initialSearch]);
 
-  // Reload view state from localStorage when company changes (scopedKey changes).
+  // Reload view state when company changes (scopedKey changes).
   const prevScopedKey = useRef(scopedKey);
   useEffect(() => {
     if (prevScopedKey.current !== scopedKey) {
