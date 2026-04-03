@@ -24,6 +24,7 @@ import { ChevronRight, ExternalLink } from "lucide-react";
 import { pickTextColorForPillBg } from "@/lib/color-contrast";
 import { cn } from "../lib/utils";
 import { timeAgo } from "../lib/timeAgo";
+import { useRedditCooldown } from "../hooks/useRedditCooldown";
 import type { Issue } from "@paperclipai/shared";
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -224,6 +225,8 @@ function KanbanCard({
     transition,
   };
 
+  const { isActive: cooldownActive, formattedTime: cooldownTime, startCooldown } = useRedditCooldown();
+
   const agentName = (id: string | null) => {
     if (!id || !agents) return null;
     return agents.find((a) => a.id === id)?.name ?? null;
@@ -347,22 +350,30 @@ function KanbanCard({
             if (!extUrl) return null;
             const commentText = String(meta?.draft_body ?? meta?.content ?? meta?.posted_text ?? "");
             return (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 transition-colors cursor-pointer"
-                onClick={async (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (commentText) {
-                    await navigator.clipboard.writeText(commentText);
-                  }
-                  window.open(extUrl, "_blank", "noopener,noreferrer");
-                }}
-                title={commentText ? "Copy comment & open Reddit" : "Open Reddit post"}
-              >
-                <ExternalLink className="h-3 w-3" />
-                Reddit
-              </button>
+              <div className="inline-flex items-center gap-1.5">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 transition-colors cursor-pointer"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (commentText) {
+                      await navigator.clipboard.writeText(commentText);
+                    }
+                    window.open(extUrl, "_blank", "noopener,noreferrer");
+                    startCooldown();
+                  }}
+                  title={commentText ? "Copy comment & open Reddit" : "Open Reddit post"}
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Reddit
+                </button>
+                {cooldownActive && (
+                  <span className="text-[10px] font-medium text-yellow-600 dark:text-yellow-400 tabular-nums">
+                    {cooldownTime}
+                  </span>
+                )}
+              </div>
             );
           })()}
         </div>

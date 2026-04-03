@@ -16,6 +16,7 @@ import { assigneeValueFromSelection, suggestedCommentAssigneeValue } from "../li
 import { queryKeys } from "../lib/queryKeys";
 import { readIssueDetailBreadcrumb } from "../lib/issueDetailBreadcrumb";
 import { useProjectOrder } from "../hooks/useProjectOrder";
+import { useRedditCooldown } from "../hooks/useRedditCooldown";
 import { relativeTime, cn, formatTokens, visibleRunCostUsd } from "../lib/utils";
 import { InlineEditor } from "../components/InlineEditor";
 import { CommentThread } from "../components/CommentThread";
@@ -233,6 +234,7 @@ export function IssueDetail() {
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [attachmentDragActive, setAttachmentDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { isActive: cooldownActive, formattedTime: cooldownTime, startCooldown } = useRedditCooldown();
   const lastMarkedReadIssueIdRef = useRef<string | null>(null);
 
   const { data: issue, isLoading, error } = useQuery({
@@ -820,20 +822,28 @@ export function IssueDetail() {
             if (!extUrl) return null;
             const commentText = String(meta.draft_body ?? meta.content ?? meta.posted_text ?? "");
             return (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/30 px-2 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400 shrink-0 hover:bg-orange-500/20 transition-colors cursor-pointer"
-                onClick={async () => {
-                  if (commentText) {
-                    await navigator.clipboard.writeText(commentText);
-                  }
-                  window.open(extUrl!, "_blank", "noopener,noreferrer");
-                }}
-                title={commentText ? "Copy comment & open Reddit post" : "Open Reddit post"}
-              >
-                <ExternalLink className="h-3 w-3" />
-                {commentText ? "Copy & Open Reddit" : "Open in Reddit"}
-              </button>
+              <div className="inline-flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 border border-orange-500/30 px-2 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 transition-colors cursor-pointer"
+                  onClick={async () => {
+                    if (commentText) {
+                      await navigator.clipboard.writeText(commentText);
+                    }
+                    window.open(extUrl!, "_blank", "noopener,noreferrer");
+                    startCooldown();
+                  }}
+                  title={commentText ? "Copy comment & open Reddit post" : "Open Reddit post"}
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  {commentText ? "Copy & Open Reddit" : "Open in Reddit"}
+                </button>
+                {cooldownActive && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 text-[10px] font-medium text-yellow-600 dark:text-yellow-400">
+                    Next post in {cooldownTime}
+                  </span>
+                )}
+              </div>
             );
           })()}
 
