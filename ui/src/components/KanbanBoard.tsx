@@ -23,6 +23,7 @@ import { Identity } from "./Identity";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { pickTextColorForPillBg } from "@/lib/color-contrast";
 import { cn } from "../lib/utils";
+import { timeAgo } from "../lib/timeAgo";
 import type { Issue } from "@paperclipai/shared";
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -337,6 +338,9 @@ function KanbanCard({
               </span>
             );
           })()}
+          <span className="text-[10px] text-muted-foreground/60 ml-auto" title={new Date(issue.createdAt).toLocaleString()}>
+            {timeAgo(issue.createdAt)}
+          </span>
           {(() => {
             const meta = issue.metadata as Record<string, unknown> | null | undefined;
             const extUrl = getExternalUrl(meta);
@@ -345,7 +349,7 @@ function KanbanCard({
             return (
               <button
                 type="button"
-                className="ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 transition-colors cursor-pointer"
                 onClick={async (e) => {
                   e.preventDefault();
                   e.stopPropagation();

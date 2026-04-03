@@ -43,6 +43,7 @@ export type IssueViewState = {
   labels: string[];
   projects: string[];
   personas: string[];
+  dateRange: string;
   sortField: "status" | "priority" | "title" | "created" | "updated";
   sortDir: "asc" | "desc";
   groupBy: "status" | "priority" | "assignee" | "none";
@@ -57,6 +58,7 @@ const defaultViewState: IssueViewState = {
   labels: [],
   projects: [],
   personas: [],
+  dateRange: "",
   sortField: "updated",
   sortDir: "desc",
   groupBy: "none",
@@ -95,6 +97,26 @@ function toggleInArray(arr: string[], value: string): string[] {
   return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
 }
 
+function getDateRangeCutoff(dateRange: string): Date | null {
+  if (!dateRange) return null;
+  const now = new Date();
+  if (dateRange === "today") {
+    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return cutoff;
+  }
+  if (dateRange === "last_3_days") {
+    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
+    return cutoff;
+  }
+  if (dateRange === "this_week") {
+    const day = now.getDay(); // 0=Sun
+    const diff = day === 0 ? 6 : day - 1; // days since Monday
+    const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+    return cutoff;
+  }
+  return null;
+}
+
 function applyFilters(issues: Issue[], state: IssueViewState, currentUserId?: string | null): Issue[] {
   let result = issues;
   if (state.statuses.length > 0) result = result.filter((i) => state.statuses.includes(i.status));
@@ -115,6 +137,10 @@ function applyFilters(issues: Issue[], state: IssueViewState, currentUserId?: st
     const persona = (i.metadata as Record<string, unknown> | null)?.persona;
     return typeof persona === "string" && state.personas.includes(persona);
   });
+  if (state.dateRange) {
+    const cutoff = getDateRangeCutoff(state.dateRange);
+    if (cutoff) result = result.filter((i) => new Date(i.createdAt) >= cutoff);
+  }
   return result;
 }
 
@@ -148,6 +174,7 @@ function countActiveFilters(state: IssueViewState): number {
   if (state.labels.length > 0) count++;
   if (state.projects.length > 0) count++;
   if (state.personas.length > 0) count++;
+  if (state.dateRange) count++;
   return count;
 }
 
@@ -427,7 +454,7 @@ export function IssuesList({
                     className="h-3 w-3 ml-1 hidden sm:block"
                     onClick={(e) => {
                       e.stopPropagation();
-                      updateView({ statuses: [], priorities: [], assignees: [], labels: [], projects: [], personas: [] });
+                      updateView({ statuses: [], priorities: [], assignees: [], labels: [], projects: [], personas: [], dateRange: "" });
                     }}
                   />
                 )}
@@ -440,7 +467,7 @@ export function IssuesList({
                   {activeFilterCount > 0 && (
                     <button
                       className="text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => updateView({ statuses: [], priorities: [], assignees: [], labels: [], personas: [] })}
+                      onClick={() => updateView({ statuses: [], priorities: [], assignees: [], labels: [], projects: [], personas: [], dateRange: "" })}
                     >
                       Clear
                     </button>
@@ -464,6 +491,35 @@ export function IssuesList({
                           onClick={() => updateView({ statuses: isActive ? [] : [...preset.statuses] })}
                         >
                           {preset.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="border-t border-border" />
+
+                {/* Date range */}
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground">Date (created)</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([
+                      ["today", "Today"],
+                      ["last_3_days", "Last 3 days"],
+                      ["this_week", "This week"],
+                    ] as const).map(([value, label]) => {
+                      const isActive = viewState.dateRange === value;
+                      return (
+                        <button
+                          key={value}
+                          className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                            isActive
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+                          }`}
+                          onClick={() => updateView({ dateRange: isActive ? "" : value })}
+                        >
+                          {label}
                         </button>
                       );
                     })}
@@ -601,9 +657,8 @@ export function IssuesList({
             </PopoverContent>
           </Popover>
 
-          {/* Sort (list view only) */}
-          {viewState.viewMode === "list" && (
-            <Popover>
+          {/* Sort */}
+          <Popover>
               <PopoverTrigger asChild>
                 <Button variant="ghost" size="sm" className="text-xs">
                   <ArrowUpDown className="h-3.5 w-3.5 sm:h-3 sm:w-3 sm:mr-1" />
@@ -628,7 +683,7 @@ export function IssuesList({
                         if (viewState.sortField === field) {
                           updateView({ sortDir: viewState.sortDir === "asc" ? "desc" : "asc" });
                         } else {
-                          updateView({ sortField: field, sortDir: "asc" });
+                          updateView({ sortField: field, sortDir: "desc" });
                         }
                       }}
                     >
@@ -643,7 +698,6 @@ export function IssuesList({
                 </div>
               </PopoverContent>
             </Popover>
-          )}
 
           {/* Group (list view only) */}
           {viewState.viewMode === "list" && (
