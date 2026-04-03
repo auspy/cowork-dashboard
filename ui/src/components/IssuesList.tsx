@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { CircleDot, Plus, Filter, ArrowUpDown, Layers, Check, X, ChevronRight, List, Columns3, User, Search } from "lucide-react";
+import { CircleDot, Plus, Filter, ArrowUpDown, Layers, Check, X, ChevronRight, List, Columns3, User, Search, Clipboard, Clock } from "lucide-react";
 import { KanbanBoard } from "./KanbanBoard";
 import type { Issue } from "@paperclipai/shared";
 
@@ -74,89 +74,147 @@ const quickFilterPresets = [
 ];
 const ISSUE_SEARCH_COMMIT_DELAY_MS = 150;
 
-/** Keys that live in URL search params (filters & sort). */
-const URL_PARAM_KEYS: Record<string, "array" | "string"> = {
-  statuses: "array",
-  priorities: "array",
-  assignees: "array",
-  labels: "array",
-  projects: "array",
-  personas: "array",
-  dateRange: "string",
-  sortField: "string",
-  sortDir: "string",
-  groupBy: "string",
+/** Filter/sort keys that are shareable via URL and tracked in history. */
+const FILTER_KEYS = ["statuses", "priorities", "assignees", "labels", "projects", "personas", "dateRange", "sortField", "sortDir", "groupBy"] as const;
+type FilterKey = typeof FILTER_KEYS[number];
+
+const FILTER_KEY_TYPES: Record<FilterKey, "array" | "string"> = {
+  statuses: "array", priorities: "array", assignees: "array", labels: "array",
+  projects: "array", personas: "array",
+  dateRange: "string", sortField: "string", sortDir: "string", groupBy: "string",
 };
 
-/** Keys that stay in localStorage (layout prefs, not shareable via URL). */
-const LOCAL_STORAGE_KEYS = ["viewMode", "collapsedGroups"] as const;
+/* ── Filter History ── */
 
-function getViewStateFromUrl(): Partial<IssueViewState> {
+interface FilterHistoryEntry {
+  filters: Pick<IssueViewState, FilterKey>;
+  timestamp: number;
+}
+
+const MAX_FILTER_HISTORY = 10;
+
+function filterHistoryKey(scopedKey: string) {
+  return `${scopedKey}:fh`;
+}
+
+function loadFilterHistory(histKey: string): FilterHistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(histKey);
+    if (raw) return JSON.parse(raw) as FilterHistoryEntry[];
+  } catch { /* ignore */ }
+  return [];
+}
+
+function pushFilterHistory(histKey: string, state: IssueViewState) {
+  const entry: FilterHistoryEntry = {
+    filters: Object.fromEntries(FILTER_KEYS.map((k) => [k, state[k]])) as Pick<IssueViewState, FilterKey>,
+    timestamp: Date.now(),
+  };
+  // Skip if no active filters (all defaults)
+  const hasActiveFilters = entry.filters.statuses.length > 0 || entry.filters.priorities.length > 0 ||
+    entry.filters.assignees.length > 0 || entry.filters.labels.length > 0 ||
+    entry.filters.projects.length > 0 || entry.filters.personas.length > 0 ||
+    !!entry.filters.dateRange;
+  if (!hasActiveFilters) return;
+  const history = loadFilterHistory(histKey);
+  if (history[0] && JSON.stringify(history[0].filters) === JSON.stringify(entry.filters)) return;
+  localStorage.setItem(histKey, JSON.stringify([entry, ...history].slice(0, MAX_FILTER_HISTORY)));
+}
+
+function describeFilters(filters: Pick<IssueViewState, FilterKey>): string {
+  const lines: string[] = [];
+  if (filters.statuses.length > 0) lines.push("Status: " + filters.statuses.map((s) => s.replace(/_/g, " ")).join(", "));
+  if (filters.priorities.length > 0) lines.push("Priority: " + filters.priorities.join(", "));
+  if (filters.assignees.length > 0) lines.push("Assignee: " + filters.assignees.map((a) => a === "__unassigned" ? "No assignee" : a === "__me" ? "Me" : a).join(", "));
+  if (filters.labels.length > 0) lines.push("Labels: " + filters.labels.join(", "));
+  if (filters.projects.length > 0) lines.push("Projects: " + filters.projects.join(", "));
+  if (filters.personas.length > 0) lines.push("Persona: " + filters.personas.join(", "));
+  if (filters.dateRange) lines.push("Date: " + filters.dateRange.replace(/_/g, " "));
+  if (filters.sortField !== defaultViewState.sortField || filters.sortDir !== defaultViewState.sortDir) {
+    lines.push("Sort: " + filters.sortField + " " + (filters.sortDir === "asc" ? "↑" : "↓"));
+  }
+  if (filters.groupBy !== defaultViewState.groupBy) lines.push("Group: " + filters.groupBy);
+  if (lines.length === 0) return "All issues";
+  return lines.join("\n");
+}
+
+/** Build a URL containing the given filters as search params. */
+function buildFilterUrl(filters: Pick<IssueViewState, FilterKey>): string {
+  const url = new URL(window.location.href);
+  for (const key of FILTER_KEYS) url.searchParams.delete(key);
+  for (const key of FILTER_KEYS) {
+    const val = (filters as Record<string, unknown>)[key];
+    const def = (defaultViewState as Record<string, unknown>)[key];
+    if (Array.isArray(val) && val.length > 0) url.searchParams.set(key, val.join(","));
+    else if (typeof val === "string" && val && val !== def) url.searchParams.set(key, val);
+  }
+  return url.toString();
+}
+
+/* ── Persistence ── */
+
+function readFilterParamsFromUrl(): Partial<IssueViewState> {
   const params = new URLSearchParams(window.location.search);
   const partial: Record<string, unknown> = {};
-  for (const [key, type] of Object.entries(URL_PARAM_KEYS)) {
+  for (const key of FILTER_KEYS) {
     const raw = params.get(key);
     if (raw != null && raw !== "") {
-      partial[key] = type === "array" ? raw.split(",") : raw;
+      partial[key] = FILTER_KEY_TYPES[key] === "array" ? raw.split(",") : raw;
     }
   }
   return partial as Partial<IssueViewState>;
 }
 
-function getLocalViewState(key: string): Partial<IssueViewState> {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const local: Record<string, unknown> = {};
-      for (const k of LOCAL_STORAGE_KEYS) {
-        if (parsed[k] !== undefined) local[k] = parsed[k];
-      }
-      return local as Partial<IssueViewState>;
-    }
-  } catch { /* ignore */ }
-  return {};
-}
-
-function getViewState(key: string): IssueViewState {
-  const fromUrl = getViewStateFromUrl();
-  const fromLocal = getLocalViewState(key);
-  return { ...defaultViewState, ...fromLocal, ...fromUrl };
+function clearUrlFilterParams() {
+  const url = new URL(window.location.href);
+  for (const key of FILTER_KEYS) url.searchParams.delete(key);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 function syncViewStateToUrl(state: IssueViewState) {
   const url = new URL(window.location.href);
-  for (const [key, type] of Object.entries(URL_PARAM_KEYS)) {
+  for (const key of FILTER_KEYS) {
     const val = (state as Record<string, unknown>)[key];
-    if (type === "array") {
+    const def = (defaultViewState as Record<string, unknown>)[key];
+    if (FILTER_KEY_TYPES[key] === "array") {
       const arr = val as string[];
-      if (arr && arr.length > 0) {
-        url.searchParams.set(key, arr.join(","));
-      } else {
-        url.searchParams.delete(key);
-      }
+      if (arr && arr.length > 0) url.searchParams.set(key, arr.join(","));
+      else url.searchParams.delete(key);
     } else {
       const str = val as string;
-      const def = (defaultViewState as Record<string, unknown>)[key];
-      if (str && str !== def) {
-        url.searchParams.set(key, str);
-      } else {
-        url.searchParams.delete(key);
-      }
+      if (str && str !== def) url.searchParams.set(key, str);
+      else url.searchParams.delete(key);
     }
   }
-  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
-  window.history.replaceState(window.history.state, "", nextUrl);
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+/**
+ * localStorage is the primary store for all view state.
+ * On first load, URL params (from a shared link) seed localStorage then are cleared.
+ */
+function getViewState(key: string): IssueViewState {
+  const fromUrl = readFilterParamsFromUrl();
+  const hasUrlFilters = Object.keys(fromUrl).length > 0;
+
+  let base: IssueViewState = { ...defaultViewState };
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) base = { ...defaultViewState, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+
+  if (hasUrlFilters) {
+    const merged = { ...base, ...fromUrl };
+    localStorage.setItem(key, JSON.stringify(merged));
+    clearUrlFilterParams();
+    return merged;
+  }
+
+  return base;
 }
 
 function saveViewState(key: string, state: IssueViewState) {
-  // Save layout prefs to localStorage
-  const local: Record<string, unknown> = {};
-  for (const k of LOCAL_STORAGE_KEYS) {
-    local[k] = (state as Record<string, unknown>)[k];
-  }
-  localStorage.setItem(key, JSON.stringify(local));
-  // Sync filter/sort to URL
+  localStorage.setItem(key, JSON.stringify(state));
   syncViewStateToUrl(state);
 }
 
@@ -357,6 +415,11 @@ export function IssuesList({
   const [assigneePickerIssueId, setAssigneePickerIssueId] = useState<string | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState("");
   const [issueSearch, setIssueSearch] = useState(initialSearch ?? "");
+  const [copied, setCopied] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [filterHistory, setFilterHistory] = useState<FilterHistoryEntry[]>(() =>
+    loadFilterHistory(filterHistoryKey(scopedKey))
+  );
   const normalizedIssueSearch = issueSearch.trim();
 
   useEffect(() => {
@@ -380,6 +443,8 @@ export function IssuesList({
     });
     onSearchChange?.(nextSearch);
   }, [onSearchChange]);
+
+  const histKey = filterHistoryKey(scopedKey);
 
   const updateView = useCallback((patch: Partial<IssueViewState>) => {
     setViewState((prev) => {
@@ -515,7 +580,12 @@ export function IssuesList({
           </div>
 
           {/* Filter */}
-          <Popover>
+          <Popover onOpenChange={(open) => {
+            if (!open) {
+              pushFilterHistory(histKey, viewState);
+              setFilterHistory(loadFilterHistory(histKey));
+            }
+          }}>
             <PopoverTrigger asChild>
               <Button variant="ghost" size="sm" className={`text-xs ${activeFilterCount > 0 ? "text-blue-600 dark:text-blue-400" : ""}`}>
                 <Filter className="h-3.5 w-3.5 sm:h-3 sm:w-3 sm:mr-1" />
@@ -538,14 +608,38 @@ export function IssuesList({
               <div className="p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Filters</span>
-                  {activeFilterCount > 0 && (
+                  <div className="flex items-center gap-2">
                     <button
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => updateView({ statuses: [], priorities: [], assignees: [], labels: [], projects: [], personas: [], dateRange: "" })}
+                      className={`flex items-center gap-1 text-xs transition-colors ${copied ? "text-green-600 dark:text-green-400" : "text-muted-foreground hover:text-foreground"}`}
+                      title="Copy filters as shareable URL"
+                      onClick={async () => {
+                        await navigator.clipboard.writeText(buildFilterUrl(viewState));
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 1500);
+                      }}
                     >
-                      Clear
+                      <Clipboard className="h-3 w-3" />
+                      {copied ? "Copied!" : "Copy"}
                     </button>
-                  )}
+                    {filterHistory.length > 0 && (
+                      <button
+                        className={`flex items-center gap-1 text-xs transition-colors ${showHistory ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                        title="Filter history"
+                        onClick={() => setShowHistory((v) => !v)}
+                      >
+                        <Clock className="h-3 w-3" />
+                        History
+                      </button>
+                    )}
+                    {activeFilterCount > 0 && (
+                      <button
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => updateView({ statuses: [], priorities: [], assignees: [], labels: [], projects: [], personas: [], dateRange: "" })}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Quick filters */}
@@ -727,6 +821,42 @@ export function IssuesList({
                     )}
                   </div>
                 </div>
+
+                {/* Filter history */}
+                {showHistory && filterHistory.length > 0 && (
+                  <>
+                    <div className="border-t border-border" />
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground">Recent filters</span>
+                      <div className="space-y-0.5 max-h-40 overflow-y-auto">
+                        {filterHistory.map((entry, i) => (
+                          <div key={i} className="flex items-start gap-2 px-2 py-1.5 rounded-sm hover:bg-accent/50 group">
+                            <button
+                              className="flex-1 text-left text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed"
+                              onClick={() => updateView({ ...entry.filters })}
+                            >
+                              {describeFilters(entry.filters)}
+                            </button>
+                            <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                              <span className="text-[10px] text-muted-foreground">{timeAgo(new Date(entry.timestamp))}</span>
+                              <button
+                                className="text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Copy as shareable URL"
+                                onClick={async () => {
+                                  await navigator.clipboard.writeText(buildFilterUrl(entry.filters));
+                                  setCopied(true);
+                                  setTimeout(() => setCopied(false), 1500);
+                                }}
+                              >
+                                <Clipboard className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </PopoverContent>
           </Popover>
